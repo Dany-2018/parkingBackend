@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "lnu2atcSfkmWgSQf8oIIBsLxsijbbI8IwCzaCUC9pHE=",
+  "Source": "ApiRestMvcParking",
+  "BasePath": "_content/ApiRestMvcParking",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
