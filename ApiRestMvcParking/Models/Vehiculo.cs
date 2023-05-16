@@ -12,7 +12,7 @@
 
         public bool AplicaDescuento { get; set; }
 
-        public DateTime HoraIngreso { get; set; }
+        public string HoraIngreso { get; set; }
 
         public DateTime HoraSalida { get; set; }
 
