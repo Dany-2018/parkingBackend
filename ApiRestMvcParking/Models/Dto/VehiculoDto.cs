@@ -16,6 +16,8 @@ namespace ApiRestMvcParking.Models.Dto
 
         public bool AplicaDescuento { get; set; }
 
-        public String HoraIngreso { get; set; }
+        public DateTime HoraIngreso { get; set; }
+
+        public DateTime HoraSalida { get; set; }
     }
 }

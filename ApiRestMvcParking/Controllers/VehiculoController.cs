@@ -2,7 +2,9 @@
 using ApiRestMvcParking.Models;
 using ApiRestMvcParking.Models.Dto;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ApiRestMvcParking.Controllers
 {
@@ -10,11 +12,18 @@ namespace ApiRestMvcParking.Controllers
     [ApiController]
     public class VehiculoController : ControllerBase
     {
+        private readonly AplicationDbContext _db;
+
+        public VehiculoController(AplicationDbContext db)
+        {
+            _db = db;
+        }
+
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<IEnumerable<VehiculoDto>> GetVehiculo()
         {
-            return Ok(VehiculoStore.vehiculoList);
+            return Ok(_db.Vehiculos.Where(w => w.HoraSalida == null).ToList());
         }
 
         [HttpGet("id:int", Name = "GetVehiculo")]
@@ -28,14 +37,16 @@ namespace ApiRestMvcParking.Controllers
                 return BadRequest();
 
             }
-            var vehiculo = VehiculoStore.vehiculoList.FirstOrDefault(v => v.IdVehiculo == id);
+            // var vehiculo = VehiculoStore.vehiculoList.FirstOrDefault(v => v.IdVehiculo == id);
+
+            var vehiculo = _db.Vehiculos.FirstOrDefault(v => v.IdVehiculo == id);
 
             if (vehiculo == null)
             {
                 return NotFound();
             }
 
-            return Ok(vehiculo);
+            return Ok(_db.Vehiculos.ToList());
         }
 
         [HttpPost]
@@ -49,7 +60,7 @@ namespace ApiRestMvcParking.Controllers
                 return BadRequest(ModelState);
             }
 
-            if (VehiculoStore.vehiculoList.FirstOrDefault(v => v.Placa.ToLower() == vehiculo.Placa.ToLower()) != null)
+            if (_db.Vehiculos.FirstOrDefault(v => v.Placa.ToLower() == vehiculo.Placa.ToLower()) != null)
             {
                 ModelState.AddModelError("PlacaExiste", "La placa ya existe! ");
 
@@ -60,13 +71,30 @@ namespace ApiRestMvcParking.Controllers
             {
                 return BadRequest();
             }
+
             if (vehiculo.IdVehiculo > 0)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError);
+                Vehiculo vehiculoModel = _db.Vehiculos.Find(vehiculo.IdVehiculo)!;
+                vehiculoModel.Placa = vehiculo.Placa;
+                vehiculoModel.Tipo = vehiculo.Tipo;
+                vehiculoModel.AplicaDescuento = vehiculo.AplicaDescuento;
+                vehiculoModel.Plaza = vehiculo.Plaza;
+                _db.Vehiculos.Update(vehiculoModel);
+            }
+            else
+            {
+                Vehiculo model = new()
+                {
+                    Placa = vehiculo.Placa,
+                    Tipo = vehiculo.Tipo,
+                    AplicaDescuento = vehiculo.AplicaDescuento,
+                    Plaza = vehiculo.Plaza,
+                    HoraIngreso = DateTime.Now
+                };
+                _db.Vehiculos.Add(model);
             }
 
-            vehiculo.IdVehiculo = VehiculoStore.vehiculoList.OrderByDescending(v => v.IdVehiculo).FirstOrDefault().IdVehiculo + 1;
-            VehiculoStore.vehiculoList.Add(vehiculo);
+            _db.SaveChanges();
 
             return CreatedAtRoute("GetVehiculo", new { id = vehiculo.IdVehiculo }, vehiculo);
         }
@@ -77,45 +105,51 @@ namespace ApiRestMvcParking.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public IActionResult DeleteVehiculo(int id)
         {
-            if(id == 0)
+            if (id == 0)
             {
                 return BadRequest();
             }
 
-            var vehiculo = VehiculoStore.vehiculoList.FirstOrDefault(v=> v.IdVehiculo == id);
-             if(vehiculo == null)
+            var vehiculo = _db.Vehiculos.FirstOrDefault(v => v.IdVehiculo == id);
+            if (vehiculo == null)
             {
-                return NotFound();    
+                return NotFound();
             }
 
-             VehiculoStore.vehiculoList.Remove(vehiculo);
+            _db.Vehiculos.Remove(vehiculo);
+            _db.SaveChanges();
 
             return NoContent();
         }
 
-        [HttpPut("{id:int}")]
+
+        [HttpPatch("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public IActionResult UpdateVehiculo(int id, [FromBody] Vehiculo vehiculoDto)
+        public IActionResult UpdatePartialVehiculo(int id)
         {
-            if(vehiculoDto == null || id!= vehiculoDto.IdVehiculo) 
+            if (id == 0)
             {
-                return BadRequest();    
+                return BadRequest();
             }
 
-            var vehiculo = VehiculoStore.vehiculoList.FirstOrDefault(v => v.IdVehiculo == id);
+            var vehiculo = _db.Vehiculos.FirstOrDefault(v => v.IdVehiculo == id)!;
+            vehiculo.HoraSalida = DateTime.Now;
 
-            vehiculo.Placa = vehiculoDto.Placa;
-            vehiculo.Tipo = vehiculoDto.Tipo;
-            vehiculo.Plaza = vehiculo.Plaza;
-            vehiculo.AplicaDescuento = vehiculo.AplicaDescuento;
-            vehiculo.HoraIngreso = vehiculo.HoraIngreso;
+            _db.Vehiculos.Update(vehiculo);
+            _db.SaveChanges();
 
-            return NoContent(); 
-
-
+            return NoContent();
         }
 
-
+        [HttpGet("TotalVentas")]
+        public IActionResult TotalVentas()
+        {
+            TotalVentasResultado total = new TotalVentasResultado();
+            var ventas = _db.Database.SqlQuery<VentasResultado>($"SELECT Tipo, SUM(TotalVehiculo - (CASE WHEN AplicaDescuento = 1 THEN TotalVehiculo * 0.25 ELSE 0 END)) AS TotalVehiculo FROM (SELECT Tipo, AplicaDescuento, DATEDIFF(HOUR, HoraIngreso, HoraSalida) * CONVERT(FLOAT, (CASE WHEN Tipo = 'Automovil' THEN 120 ELSE 62 END)) AS TotalVehiculo FROM Vehiculos) AS Q GROUP BY Tipo").ToList();
+            total.Automovil = ventas.Where(w => w.Tipo == "Automovil").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
+            total.Motocicleta = ventas.Where(w => w.Tipo == "Motocicleta").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
+            return Ok(total);
+        }
     }
 }
