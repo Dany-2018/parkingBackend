@@ -2,17 +2,17 @@
 
 namespace ApiRestMvcParking.Models.Dto
 {
-    public class TotalVentasResultado
+    public class TotalPagarResultado
     {
         public double Automovil { get; set; }
         public double Motocicleta { get; set; }
-        public double Total { get { return Automovil + Motocicleta; } }
+        public double Total { get; }
+
     }
 
-    public class VentasResultado
+    public class PagarResultado
     {
         [Key]
-        public string Tipo { get; set; } = "";
         public double TotalVehiculo { get; set; }
     }
 }

@@ -4,7 +4,9 @@ using ApiRestMvcParking.Models.Dto;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace ApiRestMvcParking.Controllers
 {
@@ -26,7 +28,7 @@ namespace ApiRestMvcParking.Controllers
             return Ok(_db.Vehiculos.Where(w => w.HoraSalida == null).ToList());
         }
 
-        [HttpGet("id:int", Name = "GetVehiculo")]
+        [HttpGet("GetVehiculoById/{id:int}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -143,13 +145,35 @@ namespace ApiRestMvcParking.Controllers
         }
 
         [HttpGet("TotalVentas")]
-        public IActionResult TotalVentas()
+        public ActionResult<IEnumerable<VehiculoDto>> TotalVentas() 
         {
             TotalVentasResultado total = new TotalVentasResultado();
-            var ventas = _db.Database.SqlQuery<VentasResultado>($"SELECT Tipo, SUM(TotalVehiculo - (CASE WHEN AplicaDescuento = 1 THEN TotalVehiculo * 0.25 ELSE 0 END)) AS TotalVehiculo FROM (SELECT Tipo, AplicaDescuento, DATEDIFF(HOUR, HoraIngreso, HoraSalida) * CONVERT(FLOAT, (CASE WHEN Tipo = 'Automovil' THEN 120 ELSE 62 END)) AS TotalVehiculo FROM Vehiculos) AS Q GROUP BY Tipo").ToList();
-            total.Automovil = ventas.Where(w => w.Tipo == "Automovil").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
-            total.Motocicleta = ventas.Where(w => w.Tipo == "Motocicleta").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
-            return Ok(total);
+
+            var totalVentas = _db.SP_TOTAL_VENTAS.FromSqlRaw<VentasResultado>($"EXECUTE SP_TOTAL_VENTAS").ToList();
+
+            total.Automovil = totalVentas.Where(w => w.Tipo == "Automovil").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
+            total.Motocicleta = totalVentas.Where(w => w.Tipo == "Motocicleta").DefaultIfEmpty(new VentasResultado()).FirstOrDefault()!.TotalVehiculo;
+            return Ok(totalVentas);
+        }
+
+
+        [HttpGet("GetTotalPagar/{id:int}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<VehiculoDto> GetTotalPagar(int id)
+        {
+            if (id == 0)
+            {
+                return BadRequest();
+
+            }
+           
+            TotalPagarResultado total = new TotalPagarResultado();
+
+            var totalPagar = _db.SP_VALOR_TOTAL_VEHICULO.FromSqlRaw<PagarResultado>($"SP_VALOR_TOTAL_VEHICULO @idVehiculo = {id}").ToList().FirstOrDefault();
+
+            return Ok(totalPagar);        
         }
     }
 }

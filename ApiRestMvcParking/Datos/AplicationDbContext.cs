@@ -1,4 +1,5 @@
 ﻿using ApiRestMvcParking.Models;
+using ApiRestMvcParking.Models.Dto;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApiRestMvcParking.Datos
@@ -11,6 +12,10 @@ namespace ApiRestMvcParking.Datos
         
         }
         public DbSet<Vehiculo> Vehiculos { get; set; }
+
+        public DbSet<VentasResultado> SP_TOTAL_VENTAS { get; set; }
+
+        public DbSet<PagarResultado> SP_VALOR_TOTAL_VEHICULO { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
